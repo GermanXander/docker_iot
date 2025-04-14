@@ -31,7 +31,7 @@ async def read_messages(nombre, queue):
         mensaje = await queue.get()
         logger.info(f"[{mensaje.topic}] : {mensaje.payload.decode('utf-8')}")
 
-async def distributor(client, topico1, topico2, queue1, queue2):
+async def repartidor(client, topico1, topico2, queue1, queue2):
     async for mensaje in client.messages:
         if mensaje.topic.matches(topico1):
             queue1.put_nowait(mensaje)
@@ -71,9 +71,9 @@ async def main():
         await client.subscribe(topico2)
 
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(distributor(client, topico1, topico2, queue1, queue2))
             tg.create_task(read_messages("topico1", queue1))
             tg.create_task(read_messages("topico2", queue2))
+            tg.create_task(repartidor(client, topico1, topico2, queue1, queue2))
             tg.create_task(incremento(contador))
             tg.create_task(publicacion(client, publish_topic, contador))
 
