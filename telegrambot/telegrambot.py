@@ -7,7 +7,7 @@ import aiomqtt, asyncio, ssl
 
 
 mqtt_server = os.environ["SERVIDOR"]
-topico_setpoint = os.environ["TOPICO"]
+topico_setpoint = "8D6056F2D249B40F/setpoint"
 token=os.environ["TB_TOKEN"]
 autorizados=[int(x) for x in os.environ["TB_AUTORIZADOS"].split(',')]
 
