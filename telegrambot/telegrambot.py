@@ -69,11 +69,8 @@ async def DMR(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         async with aiomqtt.Client(
-            "vellbach.duckdns.org",
-            port=23417,
-            username="lav",
-            password="alejandro",
-            tls_context=tls_context,
+            "fiounam.duckdns.org",
+            port=8883,
         ) as client:
             if text == 'Destello':
                 action_description = "Brilla como el sol cuando amanece ✨"
