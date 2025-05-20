@@ -5,7 +5,6 @@ import aiomqtt, asyncio, ssl
 
 
 ID = os.environ["ID"]
-
 topico_setpoint = f"{ID}/setpoint"
 topico_periodo = f"{ID}/periodo"
 topico_modo = f"{ID}/modo"
@@ -18,42 +17,36 @@ logging.basicConfig(format='%(asctime)s - TelegramBot - %(levelname)s - %(messag
 
 
 
-
-
-
-
-
 async def setpoint (update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Se debe indicar un valor")
+        await update.message.reply_text("Se debe indicar un valor 🌡️")
         return
     try: 
         valor = int(context.args[0])
     except ValueError:
-        await update.message.reply_text("El valor debe ser un número entero")
+        await update.message.reply_text("El valor debe ser un número entero 🌡️")
         return
-    
     mqtt_client = context.bot_data["mqtt_client"]
 
     await mqtt_client.publish(topico_setpoint, str(valor).encode(), qos=1)
-    await update.message.reply_text(f"Setpoint actualizado a {valor}°C")
+    await update.message.reply_text(f"Setpoint actualizado a {valor}°C 🌡️")
     logging.info(f"Setpoint enviado: {valor}°C")
 
 async def periodo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
-        await update.message.reply_text("Se debe indicar un valor de periodo")
+        await update.message.reply_text("Se debe indicar un valor de periodo 🕒")
         return
     try: 
         valor = int(context.args[0])
     except ValueError:
-        await update.message.reply_text("El periodo debe ser un numero entero")
+        await update.message.reply_text("El periodo debe ser un numero entero 🕒")
         return
     
     mqtt_client = context.bot_data["mqtt_client"]
 
     await mqtt_client.publish(topico_periodo, str(valor).encode(), qos=1)
-    await update.message.reply_text(f"Periodo actualizado a {valor} segundos")
+    await update.message.reply_text(f"Periodo actualizado a {valor} segundos 🕒")
     logging.info(f"Periodo enviado: {valor} segundos")
 
 
@@ -66,9 +59,11 @@ async def modo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mqtt_client = context.application.bot_data["mqtt_client"]
     await mqtt_client.publish("modo", str(nuevo_modo))
     if nuevo_modo == 1:
-        await update.message.reply_text("Modo automatico 🔄 activado")
+        await update.message.reply_text("Modo automatico activado! 🔄")
     else:
-        await update.message.reply_text("Modo manual 🛠 activado")
+        await update.message.reply_text("Modo manual activado! 🛠")
+
+
 
 async def rele(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) != 1 or context.args[0] not in ["encendido", "apagado"]:
@@ -77,7 +72,7 @@ async def rele(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     modo_actual = context.application.bot_data.get("modo", 1)
     if modo_actual != 0:
-        await update.message.reply_text("Solo podés usar el relé en modo manual.")
+        await update.message.reply_text("Solo podés activar el relé en modo manual 🫤")
         return
 
     estado = 1 if context.args[0] == "encendido" else 0
@@ -89,11 +84,6 @@ async def rele(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Relé apagado 💤")
 
 
-
-
-
-
-
 async def destello(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mqtt_client = context.bot_data["mqtt_client"]
     await mqtt_client.publish(topico_destello, "1".encode(), qos=1)
@@ -101,11 +91,11 @@ async def destello(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("Destello enviado")
 
 
-
-
 async def sin_autorizacion(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("intento de conexión de: " + str(update.message.from_user.id))
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="no autorizado")
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="No autorizado 🚫")
+
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info(update)
@@ -118,18 +108,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         apellido=update.message.from_user.last_name
     else:
         apellido=""
-    keyboard = [
+
+    kb = [
         ["/modo automatico", "/modo manual"],
         ["/rele encendido", "/rele apagado"],
         ["/destello"]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await context.bot.send_message(update.message.chat.id, text="Hola "+ nombre + " " + apellido +"! Bienvenido al Jotabot 🤖\nEn el teclado tenés comandos de acceso rápido 😉")
+        ]
+    reply_markup = ReplyKeyboardMarkup(kb, resize_keyboard=True, one_time_keyboard=True)
+    await context.bot.send_message(update.message.chat.id, text="Hola "+ nombre + " " + apellido +"! Bienvenido al Jotabot 🤖\nEn el teclado tenés comandos de acceso rápido 😉", reply_markup=reply_markup)
+
+
+async def temperatura(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
-
-
-async def acercade(update: Update, context):
-    await context.bot.send_message(update.message.chat.id, text="Este es el bot del Jota")
 
 
 async def async_main():
@@ -145,7 +135,6 @@ async def async_main():
     #Manejadores de comandos
     application.add_handler(MessageHandler((~filters.User(autorizados)), sin_autorizacion))
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('acercade', acercade))
     application.add_handler(CommandHandler('setpoint', setpoint))
     application.add_handler(CommandHandler('periodo', periodo))
     application.add_handler(CommandHandler('modo', modo))
@@ -165,6 +154,8 @@ async def async_main():
         tls_context=tls_context,
         tls_insecure=False
     )
+
+
     await client.__aenter__()
     application.bot_data["mqtt_client"] = client
     application.bot_data["modo"] = 1 #modo automatico por defecto
@@ -175,7 +166,7 @@ async def async_main():
     finally:
         await client.__aexit__(None, None, None)
 
-    
+
 
 if __name__ == '__main__':
     import nest_asyncio
