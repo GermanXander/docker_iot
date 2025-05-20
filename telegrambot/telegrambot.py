@@ -1,6 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
-import logging, os, asyncio, aiomysql, traceback, locale
+import logging, os, asyncio, aiomysql, traceback, locale, aiomqtt, ssl, certifi, json
 import matplotlib.pyplot as plt
 from io import BytesIO
 
@@ -56,28 +56,41 @@ async def periodo(update: Update, context):
         await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el periodo a: {float(context.args[0])}")
     except ValueError:
         await context.bot.send_message(chat_id=update.message.chat.id, text="El valor ingresado no es un número válido.")
-    
 
-async def publicacion(client, publish_topic, valor):
-    logger = logging.getLogger("publisher")
-    while True:
-        await client.publish(publish_topic, str(valor))
-        logger.info(f"Publicado: {valor}")
-        await asyncio.sleep(5)
+from aiomqtt import MqttError
 
+async def DMR(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
 
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(publicacion(client, publish_topic))
+    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    tls_context.verify_mode = ssl.CERT_REQUIRED
+    tls_context.check_hostname = True
+    tls_context.load_default_certs()
 
-async def DMR(update: Update, context):
-    if update.message.text == 'Destello':
-        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Brilla como el sol cuando amanece")
-    elif update.message.text == 'Modo':
-        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Flaco cambiaste el modo")
-    elif update.message.text == 'Relé':
-        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Se activo el rele (creo)")
-    else:
-        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Que tocaste flaco?")
+    try:
+        async with aiomqtt.Client(
+            "vellbach.duckdns.org",
+            port=23417,
+            username="lav",
+            password="alejandro",
+            tls_context=tls_context,
+        ) as client:
+            if text == 'Destello':
+                action_description = "Brilla como el sol cuando amanece ✨"
+                await client.publish("destello", payload=1)
+            elif text == 'Modo':
+                action_description = "Flaco cambiaste el modo ⚙️"
+                await client.publish("modo", payload=1)
+            elif text == 'Relé':
+                action_description = "Se activó el relé (creo) 💡"
+                await client.publish("relé", payload=1)
+            else:
+                await context.bot.send_message(update.message.chat.id,text="Qué tocaste flaco? 🤔")
+                return
+            await context.bot.send_message(update.message.chat.id, text=action_description)
+    except MqttError as e:
+        logging.error(f"Error al conectar con MQTT: {e}")
+        await context.bot.send_message(update.message.chat.id, text="❌ No se pudo conectar con el servidor MQTT.")
 
 async def medicion(update: Update, context):
     logging.info(update.message.text)
@@ -129,12 +142,14 @@ async def graficos(update: Update, context):
 
 def main():
     application = Application.builder().token(token).build()
+
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('acercade', acercade))
     application.add_handler(CommandHandler('kill', kill))
     application.add_handler(CommandHandler('setpoint', setpoint))
     application.add_handler(CommandHandler('periodo', periodo))
     application.add_handler(MessageHandler(filters.Regex("^(Destello|Modo|Relé)$"), DMR))
+
     application.run_polling()
 
 if __name__ == '__main__':
