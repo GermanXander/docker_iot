@@ -103,6 +103,8 @@ services:
     image: telegrambot
     build:
       context: ./telegrambot
+    env_file:
+      - .env
     container_name: telegrambot
     environment:
       - TZ=America/Argentina/Buenos_Aires 
