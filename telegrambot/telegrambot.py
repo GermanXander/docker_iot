@@ -7,6 +7,10 @@ import aiomqtt, asyncio, ssl
 ID = os.environ["ID"]
 
 topico_setpoint = f"{ID}/setpoint"
+topico_periodo = f"{ID}/periodo"
+topico_modo = f"{ID}/modo"
+topico_rele = f"{ID}/rele"
+topico_destello = f"{ID}/destello"
 token=os.environ["TB_TOKEN"]
 autorizados=[int(x) for x in os.environ["TB_AUTORIZADOS"].split(',')]
 
@@ -28,6 +32,73 @@ async def setpoint (update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Setpoint actualizado a {valor}°C")
     logging.info(f"Setpoint enviado: {valor}°C")
 
+async def periodo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if not context.args:
+        await update.message.reply_text("Se debe indicar un valor de periodo")
+        return
+    try: 
+        valor = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("El periodo debe ser un numero entero")
+        return
+    
+    mqtt_client = context.bot_data["mqtt_client"]
+
+    await mqtt_client.publish(topico_periodo, str(valor).encode(), qos=1)
+    await update.message.reply_text(f"Periodo actualizado a {valor} segundos")
+    logging.info(f"Periodo enviado: {valor} segundos")
+
+async def modo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Se debe indicar un modo: 0=manual, 1=automatico")
+        return
+    try: 
+        valor = int(context.args[0])
+        if valor not in [0, 1]:
+            await update.message.reply_text("El modo debe ser 0 o 1. Por favor, intente nuevamente.")
+            return
+    except ValueError:
+        await update.message.reply_text("El modo debe ser 0 o 1")
+        return
+    
+    mqtt_client = context.bot_data["mqtt_client"]
+    await mqtt_client.publish(topico_modo, str(valor).encode(), qos=1)
+    if valor == 0:
+        await update.message.reply_text("Modo manual activado")
+    else:
+        await update.message.reply_text("Modo automatico activado")
+    logging.info(f"Modo enviado: {valor}")
+
+async def rele(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Se debe indicar un valor de rele: 0=apagado, 1=encendido")
+        return
+    try: 
+        valor = int(context.args[0])
+        if valor not in [0, 1]:
+            await update.message.reply_text("El valor debe ser 0 o 1. Por favor, intente nuevamente.")
+            return
+    except ValueError:
+        await update.message.reply_text("El valor debe ser 0 o 1")
+        return
+    
+    mqtt_client = context.bot_data["mqtt_client"]
+    await mqtt_client.publish(topico_rele, str(valor).encode(), qos=1)
+    if valor == 0:
+        await update.message.reply_text("Rele apagado")
+    else:
+        await update.message.reply_text("Rele encendido")
+    logging.info(f"Rele enviado: {valor}")
+
+async def destello(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mqtt_client = context.bot_data["mqtt_client"]
+    await mqtt_client.publish(topico_destello, "1".encode(), qos=1)
+    await update.message.reply_text("Destello activado")
+    logging.info("Destello enviado")
+
+
+
 
 async def sin_autorizacion(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("intento de conexión de: " + str(update.message.from_user.id))
@@ -44,13 +115,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         apellido=update.message.from_user.last_name
     else:
         apellido=""
-    await context.bot.send_message(update.message.chat.id, text="Hola"+ nombre + " " + apellido +" soy Jotabot")
+    await context.bot.send_message(update.message.chat.id, text=" Hola"+ nombre + " " + apellido +" soy Jotabot")
     # await update.message.reply_text("Bienvenido al Bot "+ nombre + " " + apellido) # también funciona
 
 async def acercade(update: Update, context):
     await context.bot.send_message(update.message.chat.id, text="Este es el bot del Jota")
 
-async def main():
+
+async def async_main():
     # Configure TLS context for certificate verification
     tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     tls_context.verify_mode = ssl.CERT_REQUIRED
@@ -65,32 +137,36 @@ async def main():
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('acercade', acercade))
     application.add_handler(CommandHandler('setpoint', setpoint))
+    application.add_handler(CommandHandler('periodo', periodo))
+    application.add_handler(CommandHandler('modo', modo))
+    application.add_handler(CommandHandler('rele', rele))
+    application.add_handler(CommandHandler('destello', destello))
 
     logging.info("iniciando bot...")
 
     #Creacion y conexion del cliente MQTT con TLS
-    async with aiomqtt.Client(
+    client = aiomqtt.Client(
         hostname=os.environ["DOMINIO"],
         port=int(os.environ["PUERTO_MQTTS"]),
         username=os.environ["MQTT_USR"],
         password=os.environ["MQTT_PASS"],
         tls_context=tls_context,
         tls_insecure=False
-    ) as mqtt_client:
+    )
+    await client.__aenter__()
+    application.bot_data["mqtt_client"] = client
+    logging.info(f"Conectado al broker MQTT:{os.environ['DOMINIO']}")
 
-        application.bot_data["mqtt_client"] = mqtt_client
-        logging.info(f"Conectado al broker MQTT:{os.environ['DOMINIO']}")
-        
-        polling_task = asyncio.create_task(application.run_polling())
-
-
-        await polling_task
+    try: 
+        await application.run_polling()
+    finally:
+        await client.__aexit__(None, None, None)
 
     
 
 if __name__ == '__main__':
-    try:
-        asyncio.get_event_loop().run_until_complete(main())
-    except KeyboardInterrupt:
-        print("Apagando bot...")z
+    import nest_asyncio
+    nest_asyncio.apply()
+    asyncio.run(async_main())
+
 
