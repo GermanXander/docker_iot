@@ -1,6 +1,6 @@
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
-import logging, os
+import logging, os, traceback, locale
 import aiomqtt, asyncio, ssl
 
 
@@ -15,6 +15,13 @@ token=os.environ["TB_TOKEN"]
 autorizados=[int(x) for x in os.environ["TB_AUTORIZADOS"].split(',')]
 
 logging.basicConfig(format='%(asctime)s - TelegramBot - %(levelname)s - %(message)s', level=logging.INFO)
+
+
+
+
+
+
+
 
 async def setpoint (update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -49,52 +56,48 @@ async def periodo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Periodo actualizado a {valor} segundos")
     logging.info(f"Periodo enviado: {valor} segundos")
 
+
 async def modo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Se debe indicar un modo: 0=manual, 1=automatico")
+    if len(context.args) != 1 or context.args[0] not in ["automatico", "manual"]:
+        await update.message.reply_text("Usá: /modo automatico o /modo manual")
         return
-    try: 
-        valor = int(context.args[0])
-        if valor not in [0, 1]:
-            await update.message.reply_text("El modo debe ser 0 o 1. Por favor, intente nuevamente.")
-            return
-    except ValueError:
-        await update.message.reply_text("El modo debe ser 0 o 1")
-        return
-    
-    mqtt_client = context.bot_data["mqtt_client"]
-    await mqtt_client.publish(topico_modo, str(valor).encode(), qos=1)
-    if valor == 0:
-        await update.message.reply_text("Modo manual activado")
+    nuevo_modo = 1 if context.args[0] == "automatico" else 0
+    context.application.bot_data["modo"] = nuevo_modo
+    mqtt_client = context.application.bot_data["mqtt_client"]
+    await mqtt_client.publish("modo", str(nuevo_modo))
+    if nuevo_modo == 1:
+        await update.message.reply_text("Modo automatico 🔄 activado")
     else:
-        await update.message.reply_text("Modo automatico activado")
-    logging.info(f"Modo enviado: {valor}")
+        await update.message.reply_text("Modo manual 🛠 activado")
 
 async def rele(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Se debe indicar un valor de rele: 0=apagado, 1=encendido")
+    if len(context.args) != 1 or context.args[0] not in ["encendido", "apagado"]:
+        await update.message.reply_text("Usá: /rele encendido o /rele apagado")
         return
-    try: 
-        valor = int(context.args[0])
-        if valor not in [0, 1]:
-            await update.message.reply_text("El valor debe ser 0 o 1. Por favor, intente nuevamente.")
-            return
-    except ValueError:
-        await update.message.reply_text("El valor debe ser 0 o 1")
+
+    modo_actual = context.application.bot_data.get("modo", 1)
+    if modo_actual != 0:
+        await update.message.reply_text("Solo podés usar el relé en modo manual.")
         return
-    
-    mqtt_client = context.bot_data["mqtt_client"]
-    await mqtt_client.publish(topico_rele, str(valor).encode(), qos=1)
-    if valor == 0:
-        await update.message.reply_text("Rele apagado")
+
+    estado = 1 if context.args[0] == "encendido" else 0
+    mqtt_client = context.application.bot_data["mqtt_client"]
+    await mqtt_client.publish("rele", str(estado))
+    if estado == 1:
+        await update.message.reply_text("Relé encendido 💡")
     else:
-        await update.message.reply_text("Rele encendido")
-    logging.info(f"Rele enviado: {valor}")
+        await update.message.reply_text("Relé apagado 💤")
+
+
+
+
+
+
 
 async def destello(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mqtt_client = context.bot_data["mqtt_client"]
     await mqtt_client.publish(topico_destello, "1".encode(), qos=1)
-    await update.message.reply_text("Destello activado")
+    await update.message.reply_text("Destello activado 💡")
     logging.info("Destello enviado")
 
 
@@ -115,8 +118,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         apellido=update.message.from_user.last_name
     else:
         apellido=""
-    await context.bot.send_message(update.message.chat.id, text=" Hola"+ nombre + " " + apellido +" soy Jotabot")
-    # await update.message.reply_text("Bienvenido al Bot "+ nombre + " " + apellido) # también funciona
+    keyboard = [
+        ["/modo automatico", "/modo manual"],
+        ["/rele encendido", "/rele apagado"],
+        ["/destello"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await context.bot.send_message(update.message.chat.id, text="Hola "+ nombre + " " + apellido +"! Bienvenido al Jotabot 🤖\nEn el teclado tenés comandos de acceso rápido 😉")
+    
+
 
 async def acercade(update: Update, context):
     await context.bot.send_message(update.message.chat.id, text="Este es el bot del Jota")
@@ -142,6 +152,8 @@ async def async_main():
     application.add_handler(CommandHandler('rele', rele))
     application.add_handler(CommandHandler('destello', destello))
 
+
+
     logging.info("iniciando bot...")
 
     #Creacion y conexion del cliente MQTT con TLS
@@ -155,6 +167,7 @@ async def async_main():
     )
     await client.__aenter__()
     application.bot_data["mqtt_client"] = client
+    application.bot_data["modo"] = 1 #modo automatico por defecto
     logging.info(f"Conectado al broker MQTT:{os.environ['DOMINIO']}")
 
     try: 
