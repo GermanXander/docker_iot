@@ -18,7 +18,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         apellido=update.message.from_user.last_name
     else:
         apellido=""
-    kb = [["temperatura"],["humedad"],["gráfico temperatura"],["gráfico humedad"]]
+    kb = [["Destello"],["Modo"],["Relé"]]
     await context.bot.send_message(update.message.chat.id, text="Bienvenido al Bot "+ nombre + " " + apellido,reply_markup=ReplyKeyboardMarkup(kb))
 
 async def acercade(update: Update, context):
@@ -32,7 +32,53 @@ async def kill(update: Update, context):
         await context.bot.send_message(update.message.chat.id, text="¡¡¡Ahora estan todos muertos!!!")
     else:
         await context.bot.send_message(update.message.chat.id, text="☠️ ¡¡¡Esto es muy peligroso!!! ☠️")
-        
+
+async def setpoint(update: Update, context):
+    logging.info(context.args)
+
+    if not context.args:
+        await context.bot.send_message(chat_id=update.message.chat.id, text="Por favor ingresa un valor numérico.")
+        return
+    try:
+        setpoint=float(context.args[0])
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el setpoint a: {setpoint}")
+    except ValueError:
+        await context.bot.send_message(chat_id=update.message.chat.id, text="El valor ingresado no es un número válido.")
+
+
+async def periodo(update: Update, context):
+    logging.info(context.args)
+
+    if not context.args:
+        await context.bot.send_message(chat_id=update.message.chat.id, text="Por favor ingresa un valor numérico.")
+        return
+    try:
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el periodo a: {float(context.args[0])}")
+    except ValueError:
+        await context.bot.send_message(chat_id=update.message.chat.id, text="El valor ingresado no es un número válido.")
+    
+
+async def publicacion(client, publish_topic, valor):
+    logger = logging.getLogger("publisher")
+    while True:
+        await client.publish(publish_topic, str(valor))
+        logger.info(f"Publicado: {valor}")
+        await asyncio.sleep(5)
+
+
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(publicacion(client, publish_topic))
+
+async def DMR(update: Update, context):
+    if update.message.text == 'Destello':
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Brilla como el sol cuando amanece")
+    elif update.message.text == 'Modo':
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Flaco cambiaste el modo")
+    elif update.message.text == 'Relé':
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Se activo el rele (creo)")
+    else:
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Que tocaste flaco?")
+
 async def medicion(update: Update, context):
     logging.info(update.message.text)
     sql = f"SELECT timestamp, {update.message.text} FROM mediciones ORDER BY timestamp DESC LIMIT 1"
@@ -86,8 +132,9 @@ def main():
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('acercade', acercade))
     application.add_handler(CommandHandler('kill', kill))
-    application.add_handler(MessageHandler(filters.Regex("^(temperatura|humedad)$"), medicion))
-    application.add_handler(MessageHandler(filters.Regex("^(gráfico temperatura|gráfico humedad)$"), graficos))
+    application.add_handler(CommandHandler('setpoint', setpoint))
+    application.add_handler(CommandHandler('periodo', periodo))
+    application.add_handler(MessageHandler(filters.Regex("^(Destello|Modo|Relé)$"), DMR))
     application.run_polling()
 
 if __name__ == '__main__':
