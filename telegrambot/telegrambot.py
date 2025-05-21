@@ -57,37 +57,30 @@ async def periodo(update: Update, context):
     except ValueError:
         await context.bot.send_message(chat_id=update.message.chat.id, text="El valor ingresado no es un número válido.")
 
-from aiomqtt import MqttError
+
+async def publicar(context: ContextTypes.DEFAULT_TYPE, topico: str):
+    client = context.application.bot_data["mqtt_client"]
+    if not client:
+        logging.error("MQTT client no disponible en el contexto.")
+        return
+    try:
+        await client.publish(topico, topico)
+        logging.info(f"Publicado en MQTT: {topico}")
+    except Exception as e:
+        logging.error(f"Error al publicar en MQTT: {e}")
+        traceback.print_exc()
+
 
 async def DMR(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-
-    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    tls_context.verify_mode = ssl.CERT_REQUIRED
-    tls_context.check_hostname = True
-    tls_context.load_default_certs()
-
-    try:
-        async with aiomqtt.Client(
-            "fiounam.duckdns.org",
-            port=8883,
-        ) as client:
-            if text == 'Destello':
-                action_description = "Brilla como el sol cuando amanece ✨"
-                await client.publish("destello", payload=1)
-            elif text == 'Modo':
-                action_description = "Flaco cambiaste el modo ⚙️"
-                await client.publish("modo", payload=1)
-            elif text == 'Relé':
-                action_description = "Se activó el relé (creo) 💡"
-                await client.publish("relé", payload=1)
-            else:
-                await context.bot.send_message(update.message.chat.id,text="Qué tocaste flaco? 🤔")
-                return
-            await context.bot.send_message(update.message.chat.id, text=action_description)
-    except MqttError as e:
-        logging.error(f"Error al conectar con MQTT: {e}")
-        await context.bot.send_message(update.message.chat.id, text="❌ No se pudo conectar con el servidor MQTT.")
+    text = update.message.text.lower()
+    acciones = {
+        "destello": "Brilla como el sol cuando amanece ✨",
+        "modo": "Flaco cambiaste el modo ⚙️",
+        "relé": "Se activó el relé (creo) 💡"
+    }
+    
+    await publicar(context,text)
+    await context.bot.send_message(update.message.chat.id, text=acciones[text])
 
 async def medicion(update: Update, context):
     logging.info(update.message.text)
@@ -137,17 +130,44 @@ async def graficos(update: Update, context):
         buffer.close()
     conn.close()
 
-def main():
-    application = Application.builder().token(token).build()
+async def main():
 
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('acercade', acercade))
-    application.add_handler(CommandHandler('kill', kill))
-    application.add_handler(CommandHandler('setpoint', setpoint))
-    application.add_handler(CommandHandler('periodo', periodo))
-    application.add_handler(MessageHandler(filters.Regex("^(Destello|Modo|Relé)$"), DMR))
+    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    tls_context.verify_mode = ssl.CERT_REQUIRED
+    tls_context.check_hostname = True
+    tls_context.load_default_certs()
 
-    application.run_polling()
 
-if __name__ == '__main__':
-    main()
+    async with aiomqtt.Client(
+        os.environ["DOMINIO"],
+        username=os.environ["MQTT_USR"],
+        password=os.environ["MQTT_PASS"],
+        port=int(os.environ["PUERTO_MQTTS"]),
+        tls_context=tls_context,
+    ) as client:
+
+        application = Application.builder().token(token).build()
+
+        application.add_handler(CommandHandler('start', start))
+        application.add_handler(CommandHandler('about', acercade))
+        application.add_handler(CommandHandler('setpoint', setpoint))
+        application.add_handler(MessageHandler(filters.Regex("^(Destello|Modo|Relé)$"), DMR))
+
+        application.bot_data["mqtt_client"] = client
+
+        # Inicializar la aplicación Telegram
+        async with application:  # Calls initialize and shutdown
+            await application.start()
+            await application.updater.start_polling()
+            # Start other asyncio frameworks here
+            # Add some logic that keeps the event loop running until you want to shutdown
+            while True:
+                try:
+                    await asyncio.sleep(1)
+                except Exception: 
+            # Stop the other asyncio frameworks here
+                    await application.updater.stop()
+                    await application.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
