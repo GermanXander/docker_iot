@@ -40,11 +40,14 @@ async def setpoint(update: Update, context):
         await context.bot.send_message(chat_id=update.message.chat.id, text="Por favor ingresa un valor numérico.")
         return
     try:
-        setpoint=float(context.args[0])
-        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el setpoint a: {setpoint}")
+        setpoint_value = float(context.args[0])
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el setpoint a: {setpoint_value}")
+
+        payload = json.dumps({"setpoint": setpoint_value})
+        await publicar(context, "setpoint", payload)
+
     except ValueError:
         await context.bot.send_message(chat_id=update.message.chat.id, text="El valor ingresado no es un número válido.")
-
 
 async def periodo(update: Update, context):
     logging.info(context.args)
@@ -53,33 +56,38 @@ async def periodo(update: Update, context):
         await context.bot.send_message(chat_id=update.message.chat.id, text="Por favor ingresa un valor numérico.")
         return
     try:
-        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el periodo a: {float(context.args[0])}")
+        periodo_value = float(context.args[0])
+        await context.bot.send_message(chat_id=update.message.chat.id, text=f"Cambiando el periodo a: {periodo_value}")
+
+        payload = json.dumps({"periodo": periodo_value})
+        await publicar(context, "periodo", payload)
+
     except ValueError:
         await context.bot.send_message(chat_id=update.message.chat.id, text="El valor ingresado no es un número válido.")
 
-
-async def publicar(context: ContextTypes.DEFAULT_TYPE, topico: str):
-    client = context.application.bot_data["mqtt_client"]
+async def publicar(context: ContextTypes.DEFAULT_TYPE, topico: str, payload: str):
+    client = context.application.bot_data.get("mqtt_client")
     if not client:
         logging.error("MQTT client no disponible en el contexto.")
         return
     try:
-        await client.publish(topico, topico)
-        logging.info(f"Publicado en MQTT: {topico}")
+        await client.publish(topico, payload)
+        logging.info(f"Publicado en MQTT: {topico} -> {payload}")
     except Exception as e:
         logging.error(f"Error al publicar en MQTT: {e}")
         traceback.print_exc()
 
 
+
 async def DMR(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     acciones = {
-        "destello": "Brilla como el sol cuando amanece ✨",
-        "modo": "Flaco cambiaste el modo ⚙️",
-        "relé": "Se activó el relé (creo) 💡"
+        "destello": "Encendiendo el LED",
+        "modo": "Cambiando el modo",
+        "relé": "Activando el relé"
     }
-    
-    await publicar(context,text)
+
+    await publicar(context, text, text)
     await context.bot.send_message(update.message.chat.id, text=acciones[text])
 
 async def medicion(update: Update, context):
@@ -151,6 +159,7 @@ async def main():
         application.add_handler(CommandHandler('start', start))
         application.add_handler(CommandHandler('about', acercade))
         application.add_handler(CommandHandler('setpoint', setpoint))
+        application.add_handler(CommandHandler('periodo', periodo))
         application.add_handler(MessageHandler(filters.Regex("^(Destello|Modo|Relé)$"), DMR))
 
         application.bot_data["mqtt_client"] = client
