@@ -102,14 +102,14 @@ async def rele(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mqtt_client = context.application.bot_data["mqtt_client"]
     await mqtt_client.publish("rele", str(estado))
     if estado == 1:
-        await update.message.reply_text("Relé encendido 💡")
+        await update.message.reply_text("Relé encendido ⬆️")
     else:
-        await update.message.reply_text("Relé apagado 💤")
+        await update.message.reply_text("Relé apagado ⬇️")
 
 async def destello(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mqtt_client = context.bot_data["mqtt_client"]
     await mqtt_client.publish(topico_destello, "1".encode(), qos=1)
-    await update.message.reply_text("Destello activado 💡")
+    await update.message.reply_text("Destello activado 🔦")
     logging.info("Destello enviado")
 
 async def sin_autorizacion(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,6 +159,11 @@ async def mediciones(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(mensaje, parse_mode='Markdown')
 
+async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel the conversation"""
+    await update.message.reply_text("❌ Operación cancelada")
+    return ConversationHandler.END
+
 async def async_main():
     # Configure TLS context for certificate verification
     tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -199,6 +204,7 @@ async def async_main():
     application.add_handler(CommandHandler('destello', destello))
     application.add_handler(CommandHandler('mediciones', mediciones))
     application.add_handler(MessageHandler(filters.Regex('^📊 Mediciones$'), mediciones))
+    application.add_handler(CommandHandler('cancelar', cancel))
 
     logging.info("iniciando bot...")
 
