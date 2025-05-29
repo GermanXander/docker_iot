@@ -4,8 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>FLASK CRUD 1.6</title>
-  <!-- <link rel="stylesheet" href="https://bootswatch.com/5/cosmo/bootstrap.min.css"> -->
-  <link rel="stylesheet" href="https://bootswatch.com/5/darkly/bootstrap.min.css">
+  <link rel="stylesheet" href="https://bootswatch.com/5/{{ session.get('theme', 'flatly') }}/bootstrap.min.css">
+  <style>
+    html, body {
+      min-height: 100vh;
+    }
+  </style>
   {% with messages = get_flashed_messages() %} {% if messages %}
   {% for message in messages %}
   <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -19,6 +23,9 @@
       <a class="navbar-brand" href="#">CRUD</a>
       {% if session.get("user_id") %}
       <div class="d-flex">
+        <a href="{{url_for('toggle_theme')}}" class="btn btn-light me-3">
+          {% if session.get('theme', 'flatly') == 'flatly' %}🌙{% else %}☀️{% endif %}
+        </a>
         <div class="nav-item pe-3 pt-2">{{ session.get("user_id") }}</div>
         <a href="{{url_for('logout')}}" class="btn btn-secondary my-2 my-sm-0" type="submit">Salir</a>
       </div>
@@ -40,3 +47,4 @@
   <script src="{{url_for('static', filename='js/main.js')}}"></script>
 </body>
 </html>
+

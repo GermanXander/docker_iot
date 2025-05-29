@@ -18,7 +18,7 @@ app.config["MYSQL_USER"] = os.environ["MYSQL_USER"]
 app.config["MYSQL_PASSWORD"] = os.environ["MYSQL_PASSWORD"]
 app.config["MYSQL_DB"] = os.environ["MYSQL_DB"]
 app.config["MYSQL_HOST"] = os.environ["MYSQL_HOST"]
-app.config['PERMANENT_SESSION_LIFETIME']=180
+app.config['PERMANENT_SESSION_LIFETIME']=360
 mysql = MySQL(app)
 
 # rutas
@@ -38,11 +38,11 @@ def registrar():
 
         # Ensure username was submitted
         if not request.form.get("usuario"):
-            return "el campo usuario es oblicatorio"
+            return "El campo usuario es obligatorio"
 
         # Ensure password was submitted
         elif not request.form.get("password"):
-            return "el campo contraseña es oblicatorio"
+            return "El campo contraseña es obligatorio"
 
         passhash=generate_password_hash(request.form.get("password"), method='scrypt', salt_length=16)
         cur = mysql.connection.cursor()
@@ -60,10 +60,10 @@ def login():
     if request.method == "POST":
         # Ensure username was submitted
         if not request.form.get("usuario"):
-            return "el campo usuario es oblicatorio"
+            return "El campo usuario es obligatorio"
         # Ensure password was submitted
         elif not request.form.get("password"):
-            return "el campo contraseña es oblicatorio"
+            return "El campo contraseña es obligatorio"
 
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM usuarios WHERE usuario LIKE %s", (request.form.get("usuario"),))
@@ -144,4 +144,12 @@ def actualizar_contacto(id):
 def logout():
     session.clear()
     logging.info("el usuario {} cerró su sesión".format(session.get("user_id")))
+    return redirect(url_for('index'))
+
+@app.route('/toggle_theme')
+@require_login
+def toggle_theme():
+    current_theme = session.get('theme', 'flatly')
+    new_theme = 'darkly' if current_theme == 'flatly' else 'flatly'
+    session['theme'] = new_theme
     return redirect(url_for('index'))
