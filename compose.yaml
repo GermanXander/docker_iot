@@ -118,6 +118,10 @@ services:
       context: ./crud
     container_name: crud
     environment:
+      - MARIADB_USER=${MARIADB_USER}
+      - MARIADB_USER_PASS=${MARIADB_USER_PASS}
+      - MARIADB_DB=${MARIADB_DB}
+      - MARIADB_SERVER=${MARIADB_SERVER}
       - MYSQL_USER=${CRUD_USER}
       - MYSQL_PASSWORD=${CRUD_PASS}
       - MYSQL_DB=${CRUD_DB}

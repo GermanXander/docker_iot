@@ -1,9 +1,18 @@
 {% extends "layout.html" %}
 {% block body %}
+<div class="d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+  <div class="card p-4 shadow rounded" style="width: 22rem;">
+    <h4 class="text-center mb-4">Registro de Usuario</h4>
     <form method="POST" action="{{url_for('registrar')}}">
-        <input autofocus name="usuario" placeholder="Usuario" type="text">
-        <input name="password" placeholder="Contraseña" type="password">
-        <button type="submit">Aceptar</button>
+      <div class="mb-3">
+        <input autofocus name="usuario" class="form-control" placeholder="Usuario" type="text" required>
+      </div>
+      <div class="mb-3">
+        <input name="password" class="form-control" placeholder="Contraseña" type="password" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Aceptar</button>
+      <a href="{{url_for('login')}}" class="d-block text-end mt-2">Volver al login</a>
     </form>
-
+  </div>
+</div>
 {% endblock %}

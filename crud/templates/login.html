@@ -1,10 +1,20 @@
 {% extends "layout.html" %}
 {% block body %}
-    <form method="POST" action="{{url_for('login')}}">
-        <input autofocus name="usuario" placeholder="Usuario" type="text">
-        <input name="password" placeholder="Contraseña" type="password">
-        <button type="submit">Aceptar</button>
-        <a href="{{url_for('registrar')}}" style="float: right;">Registrarse</a>
+<div class="d-flex justify-content-center align-items-center"style="min-height: 80vh;">
+  <div class="card shadow p-4" style="min-width: 320px;">
+    <h3 class="text-center mb-4">Iniciar sesión</h3>
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="mb-3">
+        <input autofocus name="usuario" class="form-control" placeholder="Usuario" type="text" required>
+      </div>
+      <div class="mb-3">
+        <input name="password" class="form-control" placeholder="Contraseña" type="password" required>
+      </div>
+      <div class="d-flex justify-content-between">
+        <button type="submit" class="btn btn-primary">Aceptar</button>
+        <a href="{{ url_for('registrar') }}" class="btn btn-link">Registrarse</a>
+      </div>
     </form>
- 
+  </div>
+</div>
 {% endblock %}

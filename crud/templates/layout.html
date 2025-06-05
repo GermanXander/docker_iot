@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
-
+<html lang="es" data-bs-theme="{{session.get('light', 'dark')}}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 <head>
   <meta charset="UTF-8" />
-  <title>FLASK CRUD 1.6</title>
-  <link rel="stylesheet" href="https://bootswatch.com/5/{{ session.get('theme', 'flatly') }}/bootstrap.min.css">
+  <title>Control de nodos</title>
+  <link rel="stylesheet" href="https://bootswatch.com/5/pulse/bootstrap.min.css">
   <style>
     html, body {
       min-height: 100vh;
@@ -20,7 +20,7 @@
   {% endif %} {% endwith %}
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">CRUD</a>
+      <a class="navbar-brand" href="#">Control de nodos</a>
       {% if session.get("user_id") %}
       <div class="d-flex">
         <a href="{{url_for('toggle_theme')}}" class="btn btn-light me-3">
