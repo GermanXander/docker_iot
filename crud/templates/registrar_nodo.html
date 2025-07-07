@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block body %}
+<div class="d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+  <div class="card p-4 shadow rounded" style="width: 25rem;">
+    <h4 class="text-center mb-4">Registrar Nodo</h4>
+    <form method="POST">
+      <div class="mb-3">
+        <input name="nodo_id" class="form-control" placeholder="ID del sensor" type="text" required>
+      </div>
+      <div class="mb-3">
+        <input name="nombre" class="form-control" placeholder="Nombre del sensor" type="text" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Registrar</button>
+      <a href="{{ url_for('control') }}" class="d-block text-end mt-2">Volver al panel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

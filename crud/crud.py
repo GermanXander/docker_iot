@@ -1,9 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_mysqldb import MySQL
+from flask_mqtt import Mqtt
 import os, logging
 from functools import wraps
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
+
+import ssl
+import time
 
 logging.basicConfig(format='%(asctime)s - CRUD - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -21,6 +25,23 @@ app.config["MYSQL_HOST"] = os.environ["MARIADB_SERVER"]
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
 app.config['PERMANENT_SESSION_LIFETIME']=360
 
+#configuración para MQTTS con Flask MQTT
+
+app.config['MQTT_BROKER_URL'] = os.environ["SERVIDOR"]  # use the free broker from HIVEMQ
+app.config['MQTT_BROKER_PORT'] = int(os.environ["PUERTO_MQTTS"])  # default port for non-tls connection
+app.config['MQTT_USERNAME'] = os.environ["MQTT_USR"]  # set the username here if you need authentication for the broker
+app.config['MQTT_PASSWORD'] = os.environ["MQTT_PASS"] # set the password here if the broker demands authentication
+app.config['MQTT_TLS_ENABLED'] = True 
+app.config['MQTT_TLS_INSECURE'] = True 
+app.config['MQTT_TLS_VERSION'] = ssl.PROTOCOL_TLSv1_2  
+
+try:
+    mqtt = Mqtt(app)
+    time.sleep(2) #espera para asegurar una conexión estable al broker 
+    logging.info("Conexión MQTT inicializada correctamente")
+except Exception as e:
+    logging.error(f"Error al inicializar MQTT: {str(e)}")
+    mqtt = None
 mysql = MySQL(app)
 
 # rutas
@@ -87,34 +108,32 @@ def login():
 @require_login
 def registrar_nodo():
     if request.method == 'POST':
-        sensor_id = request.form.get('sensor_id')
+        nodo_id = request.form.get('nodo_id')
         nombre = request.form.get('nombre')
-        broker_id = request.form.get('broker_id')
         
-        if not all([sensor_id, nombre, broker_id]):
+        if not all([nodo_id, nombre]): #verificación de campos 
             flash('Todos los campos son obligatorios')
             return redirect(url_for('registrar_nodo'))
-
+        
         cur = mysql.connection.cursor()
         try:
-            # Insertar el nodo
+            # Obtener ID del usuario actual
+            cur.execute("SELECT id FROM usuarios WHERE usuario = %s", (session.get("user_id"),))
+            usuario = cur.fetchone()
+            if not usuario:
+                flash("Usuario no encontrado")
+                return redirect(url_for('logout'))
+            usuario_id = usuario[0]
+
+            # Insertar el nodo asociado al usuario
             cur.execute('''
-                INSERT INTO nodos (sensor_id, nombre, broker_id) 
+                INSERT INTO nodos (nodo_id, nombre, usuario_id) 
                 VALUES (%s, %s, %s)
-            ''', (sensor_id, nombre, broker_id))
-            
-            # Obtener el ID del nodo insertado
-            nodo_id = cur.lastrowid
-            
-            # Asignar el nodo al usuario actual
-            cur.execute('''
-                INSERT INTO usuarios_nodos (usuario_id, nodo_id)
-                SELECT id, %s FROM usuarios WHERE usuario = %s
-            ''', (nodo_id, session.get("user_id")))
-            
+            ''', (nodo_id, nombre, usuario_id))
+
             mysql.connection.commit()
             flash('Nodo registrado exitosamente')
-            logging.info(f"se agregó un nodo: {sensor_id}")
+            logging.info(f"se agregó un nodo: {nodo_id}")
             return redirect(url_for('control'))
         except Exception as e:
             mysql.connection.rollback()
@@ -123,14 +142,8 @@ def registrar_nodo():
             return redirect(url_for('registrar_nodo'))
         finally:
             cur.close()
-
-    # Obtener lista de brokers disponibles
-    cur = mysql.connection.cursor()
-    cur.execute('SELECT id, nombre, host FROM brokers_mqtt WHERE is_active = TRUE')
-    brokers = cur.fetchall()
-    cur.close()
     
-    return render_template('registrar_nodo.html', brokers=brokers)
+    return render_template('registrar_nodo.html')
 
 @app.route('/')
 @require_login
@@ -139,32 +152,54 @@ def index():
 
 @app.route('/control', methods=['GET', 'POST'])
 @require_login
-def control():
+def control(): #Control de nodos
     if request.method == 'POST':
-        node_id = request.form.get('nodo')
+        nodo_id = request.form.get('nodo')
         setpoint = request.form.get('setpoint')
         destello = 'destello' in request.form
-        cur = mysql.connection.cursor()
-        cur.execute('UPDATE nodos SET setpoint = %s, destello = %s WHERE id = %s', (setpoint, destello, node_id))
-        mysql.connection.commit()
-        cur.close()
 
-        flash(f"Comando enviado al nodo {node_id} - Setpoint: {setpoint} - Destello: {'Sí' if destello else 'No'}")
+        cur = mysql.connection.cursor()
+        try:
+            cur.execute('SELECT id FROM nodos WHERE nodo_id = %s AND usuario_id = (SELECT id FROM usuarios WHERE usuario = %s)', (nodo_id, session.get("user_id"))) #se asegura que el nodo pertenece al usuario
+            result = cur.fetchone()
+
+            if not result:
+                flash('Nodo no encontrado o no autorizado')
+                return redirect(url_for('control'))
+
+            cur.execute('UPDATE nodos SET setpoint = %s WHERE id = %s', (setpoint, nodo_id)) #se actualiza el setpoint del nodo
+            mysql.connection.commit()
+
+
+            try:  #publicacion de setpoint y destello por MQTT
+                mqtt.publish(f"{nodo_id}/setpoint", str(setpoint))
+                logging.info(f"{nodo_id}")
+                logging.info(f"Setpoint enviado a {nodo_id}/setpoint: {setpoint}")
+                if destello:
+                    mqtt.publish(f"{nodo_id}/destello","1")
+                    logging.info(F"Destello enviado a {nodo_id}/destello")
+            except Exception as e:
+                logging.error(f"Error al publicar por MQTT: {str(e)}")
+            flash(f"Comando enviado al nodo {nodo_id} - Setpoint: {setpoint} - Destello: {'Sí' if destello else 'No'}")
+
+        except Exception as e:
+            mysql.connection.rollback()
+            flash('Error al actualizar el nodo')
+            logging.error(f"Error al actualizar nodo: {str(e)}")
+        finally:
+            cur.close()
+
         return redirect(url_for('control'))
-    
-    # Obtener los nodos a los que el usuario tiene acceso
+
+    # Obtener nodos del usuario actual
     cur = mysql.connection.cursor()
     cur.execute('''
-        SELECT n.id, n.sensor_id, n.nombre, n.setpoint, n.destello, b.nombre as broker_nombre
-        FROM nodos n
-        JOIN usuarios_nodos un ON n.id = un.nodo_id
-        JOIN usuarios u ON un.usuario_id = u.id
-        JOIN brokers_mqtt b ON n.broker_id = b.id
-        WHERE u.usuario = %s AND n.is_active = TRUE
+        SELECT nodo_id, nombre, setpoint FROM nodos
+        WHERE usuario_id = (SELECT id FROM usuarios WHERE usuario = %s)
     ''', (session.get("user_id"),))
     nodos = cur.fetchall()
     cur.close()
-    
+
     return render_template('control.html', nodos=nodos)
 
 @app.route("/logout")
