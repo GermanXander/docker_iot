@@ -28,15 +28,15 @@ Este proyecto es una aplicación web desarrollada con Flask para gestionar nodos
 
 Antes de correr la app, se deben tener configuradas las siguientes variables de entorno:
 
--MARIADB_USER
--MARIADB_USER_PASS
--MARIADB_DB
--MARIADB_SERVER
--FLASK_SECRET_KEY
--MQTT_BROKER
--MQTT_PORT
--MQTT_USER
--MQTT_PASSWORD
+- MARIADB_USER
+- MARIADB_USER_PASS
+- MARIADB_DB
+- MARIADB_SERVER
+- FLASK_SECRET_KEY
+- MQTT_BROKER
+- MQTT_PORT
+- MQTT_USER
+- MQTT_PASSWORD
 
 
 ##Observaciones
